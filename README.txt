@@ -1,0 +1,159 @@
+//////////// FILES INCLUDED///////////////////////
+
+- Data/data/
+    - ##########.jpeg file       : RGB images recorded
+    - ##########.pcd file        : point clouds recorded
+    - ##########_camera.xml file : camera parameters
+    - ##########_depth.png  file : depth images recorded
+    - ##########_normal.pcd file : normals extracted
+    - ##########_mask.jpeg  file : object masks
+
+    NOTE: we have removed this directory for uploading purposes!
+
+- Data/
+    - ##########_xyz             : point clouds used for testing
+    - ##########_mat             : point clouds used for testing
+
+- template.py:
+    Contains all functions used to perform iterative closest point en meshing frames.
+    To reproduce results from part 2 of the assignment, uncomment or adapt the corresponding lines and run ICP.py
+    Use run_assignment(arr) with arr = "3.1a", arr = "3.1b" or arr = "3.2" to run corresponding questions.
+    Code blocks have comments above them explaining what they do.
+
+REQUIREMENTS:
+We used a conda environment, that we exported as yml file: see CV2_ass_1.yml.
+
+///////////////////////////////////////////////////
+
+Additional information about our used packages can be found below:
+
+Name                    Version                   Build  Channel
+_libgcc_mutex             0.1                        main  
+addict                    2.4.0                    pypi_0    pypi
+argon2-cffi               20.1.0           py36h27cfd23_1  
+async_generator           1.10             py36h28b3542_0  
+attrs                     20.3.0             pyhd3eb1b0_0  
+backcall                  0.2.0              pyhd3eb1b0_0  
+blas                      1.0                         mkl  
+bleach                    3.3.0              pyhd3eb1b0_0  
+ca-certificates           2021.4.13            h06a4308_1  
+certifi                   2020.12.5        py36h5fab9bb_1    conda-forge
+cffi                      1.14.5           py36h261ae71_0  
+cycler                    0.10.0                   py36_0  
+dbus                      1.13.18              hb2f20db_0  
+decorator                 5.0.5              pyhd3eb1b0_0  
+defusedxml                0.7.1              pyhd3eb1b0_0  
+entrypoints               0.3                      py36_0  
+expat                     2.3.0                h2531618_2  
+fontconfig                2.13.1               h6c09931_0  
+freetype                  2.10.4               h5ab3b9f_0  
+glib                      2.68.1               h36276a3_0  
+gst-plugins-base          1.14.0               h8213a91_2  
+gstreamer                 1.14.0               h28cd5cc_2  
+icu                       58.2                 he6710b0_3  
+importlib-metadata        3.7.3            py36h06a4308_1  
+importlib_metadata        3.7.3                hd3eb1b0_1  
+intel-openmp              2020.2                      254  
+ipykernel                 5.3.4            py36h5ca1d4c_0  
+ipython                   7.16.1           py36h5ca1d4c_0  
+ipython_genutils          0.2.0              pyhd3eb1b0_1  
+ipywidgets                7.6.3              pyhd3eb1b0_1  
+jedi                      0.17.0                   py36_0  
+jinja2                    2.11.3             pyhd3eb1b0_0  
+joblib                    1.0.1              pyhd8ed1ab_0    conda-forge
+jpeg                      9b                   h024ee3a_2  
+jsonschema                3.2.0                      py_2  
+jupyter_client            6.1.12             pyhd3eb1b0_0  
+jupyter_core              4.7.1            py36h06a4308_0  
+jupyterlab_pygments       0.1.2                      py_0  
+jupyterlab_widgets        1.0.0              pyhd3eb1b0_1  
+kiwisolver                1.3.1            py36h2531618_0  
+lcms2                     2.12                 h3be6417_0  
+ld_impl_linux-64          2.33.1               h53a641e_7  
+libblas                   3.9.0           1_h6e990d7_netlib    conda-forge
+libcblas                  3.9.0           3_h893e4fe_netlib    conda-forge
+libffi                    3.3                  he6710b0_2  
+libgcc-ng                 9.1.0                hdf63c60_0  
+libgfortran-ng            7.5.0               h14aa051_19    conda-forge
+libgfortran4              7.5.0               h14aa051_19    conda-forge
+liblapack                 3.9.0           3_h893e4fe_netlib    conda-forge
+libpng                    1.6.37               hbc83047_0  
+libsodium                 1.0.18               h7b6447c_0  
+libstdcxx-ng              9.1.0                hdf63c60_0  
+libtiff                   4.1.0                h2733197_1  
+libuuid                   1.0.3                h1bed415_2  
+libxcb                    1.14                 h7b6447c_0  
+libxml2                   2.9.10               hb55368b_3  
+lz4-c                     1.9.3                h2531618_0  
+markupsafe                1.1.1            py36h7b6447c_0  
+matplotlib                3.3.4            py36h06a4308_0  
+matplotlib-base           3.3.4            py36h62a2d02_0  
+mistune                   0.8.4            py36h7b6447c_0  
+mkl                       2020.2                      256  
+mkl-service               2.3.0            py36he8ac12f_0  
+mkl_fft                   1.3.0            py36h54f3939_0  
+mkl_random                1.1.1            py36h0573a6f_0  
+nbclient                  0.5.3              pyhd3eb1b0_0  
+nbconvert                 6.0.7                    py36_0  
+nbformat                  5.1.3              pyhd3eb1b0_0  
+ncurses                   6.2                  he6710b0_1  
+nest-asyncio              1.5.1              pyhd3eb1b0_0  
+notebook                  6.3.0            py36h06a4308_0  
+numpy                     1.19.2           py36h54aff64_0  
+numpy-base                1.19.2           py36hfa32c7d_0  
+olefile                   0.46                     py36_0  
+open3d                    0.12.0                   pypi_0    pypi
+openssl                   1.1.1k               h27cfd23_0  
+packaging                 20.9               pyhd3eb1b0_0  
+pandas                    1.1.5                    pypi_0    pypi
+pandoc                    2.12                 h06a4308_0  
+pandocfilters             1.4.3            py36h06a4308_1  
+parso                     0.8.2              pyhd3eb1b0_0  
+pcre                      8.44                 he6710b0_0  
+pexpect                   4.8.0              pyhd3eb1b0_3  
+pickleshare               0.7.5           pyhd3eb1b0_1003  
+pillow                    8.2.0            py36he98fc37_0  
+pip                       21.0.1           py36h06a4308_0  
+plyfile                   0.7.3                    pypi_0    pypi
+pptk                      0.1.0                    pypi_0    pypi
+prometheus_client         0.10.0             pyhd3eb1b0_0  
+prompt-toolkit            3.0.17             pyh06a4308_0  
+ptyprocess                0.7.0              pyhd3eb1b0_2  
+pycparser                 2.20                       py_2  
+pygments                  2.8.1              pyhd3eb1b0_0  
+pyparsing                 2.4.7              pyhd3eb1b0_0  
+pyqt                      5.9.2            py36h05f1152_2  
+pyrsistent                0.17.3           py36h7b6447c_0  
+python                    3.6.13               hdb3f193_0  
+python-dateutil           2.8.1              pyhd3eb1b0_0  
+python_abi                3.6                     1_cp36m    conda-forge
+pytz                      2021.1                   pypi_0    pypi
+pyyaml                    5.4.1                    pypi_0    pypi
+pyzmq                     20.0.0           py36h2531618_1  
+qt                        5.9.7                h5867ecd_1  
+readline                  8.1                  h27cfd23_0  
+scikit-learn              0.23.2           py36hb6e6923_3    conda-forge
+scipy                     1.5.3            py36h976291a_0    conda-forge
+send2trash                1.5.0              pyhd3eb1b0_1  
+setuptools                52.0.0           py36h06a4308_0  
+sip                       4.19.8           py36hf484d3e_0  
+six                       1.15.0           py36h06a4308_0  
+sklearn                   0.0                      pypi_0    pypi
+sqlite                    3.35.4               hdfb4753_0  
+terminado                 0.9.4            py36h06a4308_0  
+testpath                  0.4.4              pyhd3eb1b0_0  
+threadpoolctl             2.1.0              pyh5ca1d4c_0    conda-forge
+tk                        8.6.10               hbc83047_0  
+tornado                   6.1              py36h27cfd23_0  
+tqdm                      4.60.0                   pypi_0    pypi
+traitlets                 4.3.3                    py36_0  
+typing_extensions         3.7.4.3            pyha847dfd_0  
+wcwidth                   0.2.5                      py_0  
+webencodings              0.5.1                    py36_1  
+wheel                     0.36.2             pyhd3eb1b0_0  
+widgetsnbextension        3.5.1                    py36_0  
+xz                        5.2.5                h7b6447c_0  
+zeromq                    4.3.4                h2531618_0  
+zipp                      3.4.1              pyhd3eb1b0_0  
+zlib                      1.2.11               h7b6447c_3  
+zstd                      1.4.9                haebb681_0 
