@@ -1,0 +1,5 @@
+h5py
+tensorflow==1.10.0
+pandas
+numpy
+opencv-python

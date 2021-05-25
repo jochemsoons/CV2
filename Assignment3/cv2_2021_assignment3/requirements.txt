@@ -1,0 +1,2 @@
+https://github.com/1adrianb/face-alignment/archive/2e5d1f330a0fb76323747d4f125510bc4a4d7b90.zip
+https://github.com/cmusatyalab/openface/archive/0.2.1.zip
