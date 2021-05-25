@@ -350,6 +350,7 @@ def texture(bfm, image='leonardo'):
                 Q_matrix = np.array([[Q_11[c], Q_12[c]], [Q_21[c], Q_22[c]]])                
                 rgb_val = 1 / denom * np.array([x2 - x, x - x1]) @ Q_matrix @ np.array([y2 - y, y - y1])   
                 texture[i][c] = rgb_val
+                
     # Normalize values between 0 and 1.
     texture = texture / 255
     # render and save image.
