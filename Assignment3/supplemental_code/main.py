@@ -13,6 +13,7 @@ def main():
     while question not in ['4.2.1', '4.2.2', '4.2.3', '4.2.4', '4.2.5', '4.2.6']:
         question = str(input("Not a valid question number. Needs to be in range 4.2.1- 4.2.6. \nTry again:"))
     
+    # Load BFM model and create results directory.
     bfm = h5py.File("model2017-1_face12_nomouth.h5", 'r')
     Path("./results/").mkdir(parents=True, exist_ok=True)
 
