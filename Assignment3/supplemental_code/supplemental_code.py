@@ -64,7 +64,6 @@ def render(uvz, color, triangles, H=480, W=640):
     color - matrix of shape Nx3, where N is an amount of vertices, 3 channels represent R,G,B color scaled from 0 to 1
     triangles - matrix of shape Mx3, where M is an amount of triangles, each column represents a vertex index
     """
-
     assert len(uvz.shape) == 2
     assert len(color.shape) == 2
     assert len(triangles.shape) == 2
