@@ -5,6 +5,7 @@ import torch
 from torch.autograd import Variable
 
 from supplemental_code import *
+from plot import *
 
 # Convert euclidean coordinates to homogeneous
 def e2h(data, use_torch=True):
@@ -144,8 +145,8 @@ def compute_G(bfm, landmarks=None, use_torch=False, alpha=None, delta=None):
         # Uniformly sample alpha and delta
         alpha, delta = np.random.uniform(-1, 1, 30), np.random.uniform(-1, 1, 20)
         G = mean_id + (pca_id @ (alpha * np.sqrt(variance_id))) + mean_exp + (pca_exp @ (delta * np.sqrt(variance_exp)))
-        save_obj('./results/G.obj', G, mean_color, triangle_topology.T)
-        print("Open G.obj in Meshlab to view G.")
+        save_obj('./results/G_sampled.obj', G, mean_color, triangle_topology.T)
+        print("Open G_sampled.obj in Meshlab to view sampled pointcloud.")
     else:
         G = mean_id + (pca_id @ (alpha * np.sqrt(variance_id))) + mean_exp + (pca_exp @ (delta * np.sqrt(variance_exp)))    
     return G
@@ -155,26 +156,11 @@ def rotate_G_pos_and_neg_10_degrees(bfm):
     G = e2h(compute_G(bfm), use_torch=False)
     G_rot_pos_10 = G @ transformation_matrix(x_rot=0, y_rot=10, z_rot=0, x=0, y=0, z=0)
     G_rot_neg_10 = G @ transformation_matrix(x_rot=0, y_rot=-10, z_rot=0, x=0, y=0, z=0)
-
     _, _, _, _, _, _, mean_color, triangle_topology = get_data(bfm)
     save_obj('./results/G_original.obj', h2e(G), mean_color, triangle_topology.T)
     save_obj('./results/G_rotated_pos_10_deg.obj', h2e(G_rot_pos_10), mean_color, triangle_topology.T)
     save_obj('./results/G_rotatied_neg_10_deg.obj', h2e(G_rot_neg_10), mean_color, triangle_topology.T)
     print("Open G_rotated_pos_10_deg.obj and G_rotated_neg_10_deg.obj in Meshlab to view rotated G.")
-
-def plot_landmarks(G, name):
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.set_aspect('equal')
-    ax.plot(G[:, 0], G[:, 1], 'o')
-    for i, xy in enumerate(zip(G[:, 0], G[:, 1])):
-        ax.annotate(str(i), xy=xy, textcoords='data')
-    if name == 'original_landmarks':
-        plt.title('Original landmarks')
-    elif name == 'transformed_landmarks':
-        plt.title('Transformed landmarks')
-    plt.tight_layout()
-    plt.savefig('./results/{}.png'.format(name))
 
 # (second part question 4.2.2)
 def landmarks(bfm):
@@ -188,14 +174,13 @@ def landmarks(bfm):
     V = viewport_matrix(vr=1, vl=0, vt=1, vb=0)
     P = perspective_projection_matrix(width=1, height=1, n=1, f=100, fovy=None, overwrite=True)
     G_trans = G @ T
-    G_new = ((V @ P) @ G_trans.T).T  
-
+    G_trans = ((V @ P) @ G_trans.T).T  
     plot_landmarks(G, 'original_landmarks')
-    plot_landmarks(G_new, 'transformed_landmarks')
+    plot_landmarks(G_trans, 'transformed_landmarks')
     print("Open original_landmarks.png and transformed_landmarks.png to get plotted results of original landmarks and transformed landmarks.")
     return 
 
-def latent_parameter_estimation(bfm, img, img_name, n_epochs=3000, lambda_alpha=0.1, lambda_delta=0.1, plot=True):
+def latent_parameter_estimation(bfm, img, img_name, n_iters=5000, lambda_alpha=0.1, lambda_delta=0.1, plot=True):
     print("Learning latent parameters for {} image".format(img_name))
     # Visualize facial landmark points on the 2D image plane.
     file = open('Landmarks68_model2017-1_face12_nomouth.anl', mode='r')
@@ -222,33 +207,27 @@ def latent_parameter_estimation(bfm, img, img_name, n_epochs=3000, lambda_alpha=
     V = torch.from_numpy(viewport_matrix(vr, vl, vt, vb)).float()
     P = torch.from_numpy(perspective_projection_matrix(width, height, n, f, fovy)).float()
 
-    for epoch in np.arange(n_epochs):
-        G_landmark = e2h(compute_G(bfm, landmarks=landmark_indices, use_torch=True, alpha=alpha, delta=delta))
-        G_landmark = G_landmark.t().float()
-  
+    L_lan_list, L_reg_list, L_fit_list = [], [], []
+    for iter in np.arange(n_iters):
+        G = e2h(compute_G(bfm, landmarks=landmark_indices, use_torch=True, alpha=alpha, delta=delta)).float()
         T = transformation_matrix(omega[0], omega[1], omega[2], t[0], t[1], t[2], use_torch=True)
-        out = V @ P @ T @ G_landmark
-        landmarks_pred = out[:2, :] / out[3, :]
+        G_trans = T @ G.T
+        G_trans = V @ P @ G_trans
+        landmarks_pred = G_trans[:2, :] / G_trans[3, :]
 
         optimizer.zero_grad()
-        L_lan = (landmarks_pred - landmarks_true).pow(2).sum(dim=0).sqrt().sum() / 68
+        L_lan = torch.mean((landmarks_pred - landmarks_true).pow(2).sum(dim=0).sqrt())
         L_reg = lambda_alpha * torch.sum(alpha.pow(2)) + lambda_delta * torch.sum(delta.pow(2))
         L_fit = L_lan + L_reg
         L_fit.backward()
         optimizer.step()
-        if epoch % 20 == 0:
-            print('Epoch: {}/{}, L_lan: {:.4f}, L_reg: {:.4f}, L_fit:{:.4f}'.format(epoch, n_epochs, L_lan, L_reg, L_fit))
-
+        L_lan_list.append(L_lan), L_reg_list.append(L_reg), L_fit_list.append(L_fit)
+        if iter % 50 == 0:
+            print('Iteration: {}/{}, L_lan: {:.4f}, L_reg: {:.4f}, L_fit:{:.4f}'.format(iter, n_iters, L_lan, L_reg, L_fit))
     if plot:
-        # Plot landmark matchings.
-        plt.figure()
-        plt.imshow(img)
-        plt.scatter(landmarks_ground_truth[:, 0], landmarks_ground_truth[:, 1], label='detected landmarks')
-        landmarks_preds_x, landmarks_pred_y = landmarks_pred.detach()[0, :], landmarks_pred.detach()[1, :]
-        plt.scatter(landmarks_preds_x, landmarks_pred_y, label='predicted landmarks')
-        plt.tight_layout()
-        plt.legend()
-        plt.savefig('results/learned_landmarks_{}_{}.png'.format(img_name, n_epochs))
+        # Plot learned landmark matchings.
+        plot_learned_matches(landmarks_true, landmarks_pred, img, img_name, n_iters)
+        plot_loss_iters(L_lan_list, L_reg_list, L_fit_list, img_name, n_iters)
 
     pdump(alpha.detach(), 'alpha_' + img_name)
     pdump(delta.detach(), 'delta_' + img_name)
@@ -306,20 +285,12 @@ def get_texture(bfm, img, img_name, alpha, delta, omega, t, plot=True):
     texture = texture / 255
     # render and save image.
     if plot:
-        plt.figure()
-        plt.imshow(img)
-        plt.scatter(G_trans[:, 0], G_trans[:, 1], G_trans[:, 2], marker='.')
-        plt.tight_layout()
-        plt.savefig('results/point_cloud_transformed_{}.png'.format(img_name))
+        plot_transformed_pcd(img, G_trans, img_name)
         rendered_img = render(G_trans, texture, triangle_topology.T, H=height, W=width)
-        plt.figure()
-        plt.imshow(rendered_img)
-        plt.tight_layout()
-        plt.savefig('./results/texture_{}.png'.format(img_name))
-        plt.close()    
+        plot_texture(rendered_img, img_name)
     return texture, G_trans, triangle_topology.T
 
-def multiple_frames(bfm, img_frames, landmarks_true_list, n_epochs=3000, lambda_alpha=0.1, lambda_delta=0.1, plot=True):
+def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=3000, lambda_alpha=0.1, lambda_delta=0.1, plot=True):
     file = open('Landmarks68_model2017-1_face12_nomouth.anl', mode='r')
     landmarks_str = file.read()
     file.close()
@@ -345,24 +316,24 @@ def multiple_frames(bfm, img_frames, landmarks_true_list, n_epochs=3000, lambda_
     P = torch.from_numpy(perspective_projection_matrix(width, height, n, f, fovy)).float()
     
     landmarks_preds = torch.zeros(M, 2, 68)
-    for epoch in np.arange(n_epochs):
+    for iter in np.arange(n_iters):
         L_lan, L_reg, L_fit = 0, 0, 0
         for i in range(M):
-            G_landmark = e2h(compute_G(bfm, landmarks=landmark_indices, use_torch=True, alpha=alpha[i], delta=delta[i]))
-            G_landmark = G_landmark.t().float()
-    
+            G = e2h(compute_G(bfm, landmarks=landmark_indices, use_torch=True, alpha=alpha[i], delta=delta[i])).float()    
             T = transformation_matrix(omega[i][0], omega[i][1], omega[i][2], t[i][0], t[i][1], t[i][2], use_torch=True)
-            G_trans = V @ P @ T @ G_landmark
+            G_trans = T @ G.T
+            G_trans = V @ P @ G_trans
             landmarks_pred = G_trans[:2, :] / G_trans[3, :]
             landmarks_preds[i] = landmarks_pred
-            L_lan += (landmarks_pred - landmarks_true_list[i]).pow(2).sum(dim=0).sqrt().sum() / 68
+            L_lan += torch.mean((landmarks_pred - landmarks_true_list[i]).pow(2).sum(dim=0).sqrt())
+            # L_lan += (landmarks_pred - landmarks_true_list[i]).pow(2).sum(dim=0).sqrt().sum() / 68
             L_reg += lambda_alpha * torch.sum(alpha[i].pow(2)) + lambda_delta * torch.sum(delta[i].pow(2))
         L_fit = L_lan + L_reg
         optimizer.zero_grad()
         L_fit.backward()
         optimizer.step()
-        if epoch % 20 == 0:
-            print('Epoch: {}/{}, L_lan: {:.4f}, L_reg: {:.4f}, L_fit:{:.4f}'.format(epoch, n_epochs, L_lan, L_reg, L_fit))
+        if iter % 50 == 0:
+            print('iter: {}/{}, L_lan: {:.4f}, L_reg: {:.4f}, L_fit:{:.4f}'.format(iter, n_iters, L_lan, L_reg, L_fit))
     
     for i, img_frame in enumerate(img_frames):
         img_name='frame_' + str(i)
@@ -390,16 +361,8 @@ def face_swap(bfm, source, target, source_name, target_name):
     swap_s_to_t = paste_swapped_face(swap_s_to_t, target)
     swap_t_to_s = paste_swapped_face(swap_t_to_s, source)
 
-    plt.figure()
-    plt.imshow(swap_s_to_t)
-    plt.tight_layout()
-    plt.savefig('./results/swap_{}_{}.png'.format(source_name, target_name))
-    
-    plt.figure()
-    plt.imshow(swap_t_to_s)
-    plt.tight_layout()
-    plt.savefig('./results/swap_{}_{}.png'.format(target_name, source_name))
-    plt.close()    
+    plot_swapped_face(swap_s_to_t, source_name, target_name)    
+    plot_swapped_face(swap_t_to_s, target_name, source_name)
 
 def paste_swapped_face(swapped_face, target):
     target = target.copy()
