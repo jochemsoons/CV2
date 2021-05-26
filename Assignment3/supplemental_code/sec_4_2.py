@@ -73,7 +73,7 @@ def z_rot_matrix(degrees, use_torch=False):
                         [0,                0,                0, 1]])
 
 # Computes transformation matrix given degrees to rotate around x, y 
-# and z axis and traslation for x, y and z
+# and z axis and translation for x, y and z
 def transformation_matrix(x_rot=0, y_rot=0, z_rot=0, x=1, y=1, z=1, use_torch=False):
     transformation = z_rot_matrix(z_rot, use_torch) @ y_rot_matrix(y_rot, use_torch) @ x_rot_matrix(x_rot, use_torch)
     transformation[0,3], transformation[1,3], transformation[2,3] = x, y, z
@@ -189,6 +189,8 @@ def latent_parameter_estimation(bfm, img, img_name, n_iters=5000, lambda_alpha=0
     landmark_indices = np.array(landmarks_str.split("\n")).astype(int)
     landmarks_ground_truth = detect_landmark(img)
     landmarks_true = torch.Tensor(landmarks_ground_truth).t()
+    if plot:
+        plot_learned_matches(landmarks_true, landmarks_pred=None, img=img, img_name=img_name, n_iters=0)
 
     alpha = Variable(torch.FloatTensor(30).uniform_(-1, 1), requires_grad=True)
     delta = Variable(torch.FloatTensor(20).uniform_(-1, 1), requires_grad=True)
@@ -200,7 +202,7 @@ def latent_parameter_estimation(bfm, img, img_name, n_iters=5000, lambda_alpha=0
     height, width, _ = np.shape(img)
     fovy = 0.5
     n = 1
-    f = 256
+    f = 2000
     vr = width
     vb = height
     vl, vt = 0, 0
@@ -208,6 +210,7 @@ def latent_parameter_estimation(bfm, img, img_name, n_iters=5000, lambda_alpha=0
     P = torch.from_numpy(perspective_projection_matrix(width, height, n, f, fovy)).float()
 
     L_lan_list, L_reg_list, L_fit_list = [], [], []
+    L_fit_prev = np.inf
     for iter in np.arange(n_iters):
         G = e2h(compute_G(bfm, landmarks=landmark_indices, use_torch=True, alpha=alpha, delta=delta)).float()
         T = transformation_matrix(omega[0], omega[1], omega[2], t[0], t[1], t[2], use_torch=True)
@@ -222,12 +225,20 @@ def latent_parameter_estimation(bfm, img, img_name, n_iters=5000, lambda_alpha=0
         L_fit.backward()
         optimizer.step()
         L_lan_list.append(L_lan), L_reg_list.append(L_reg), L_fit_list.append(L_fit)
+        if iter == 0:
+            if plot:
+                plot_learned_matches(landmarks_true, landmarks_pred, img, img_name, iter+1)
         if iter % 50 == 0:
+            if L_fit >= L_fit_prev - 0.005:
+                print("Detected convergence: applying early stopping.")
+                break
+            else:
+                L_fit_prev = L_fit
             print('Iteration: {}/{}, L_lan: {:.4f}, L_reg: {:.4f}, L_fit:{:.4f}'.format(iter, n_iters, L_lan, L_reg, L_fit))
     if plot:
         # Plot learned landmark matchings.
-        plot_learned_matches(landmarks_true, landmarks_pred, img, img_name, n_iters)
-        plot_loss_iters(L_lan_list, L_reg_list, L_fit_list, img_name, n_iters)
+        plot_learned_matches(landmarks_true, landmarks_pred, img, img_name, iter+1)
+        plot_loss_iters(L_lan_list, L_reg_list, L_fit_list, img_name, iter+1)
 
     pdump(alpha.detach(), 'alpha_' + img_name)
     pdump(delta.detach(), 'delta_' + img_name)
@@ -240,7 +251,7 @@ def get_texture(bfm, img, img_name, alpha, delta, omega, t, plot=True):
     height, width, _ = np.shape(img)
     img_original = np.swapaxes(img, 0, 1)
     n = 1
-    f = 256
+    f = 2000
     vr = width
     vb = height
     vl, vt = 0, 0
@@ -290,7 +301,7 @@ def get_texture(bfm, img, img_name, alpha, delta, omega, t, plot=True):
         plot_texture(rendered_img, img_name)
     return texture, G_trans, triangle_topology.T
 
-def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=3000, lambda_alpha=0.1, lambda_delta=0.1, plot=True):
+def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=5000, lambda_alpha=0.1, lambda_delta=0.1, plot=True):
     file = open('Landmarks68_model2017-1_face12_nomouth.anl', mode='r')
     landmarks_str = file.read()
     file.close()
@@ -308,7 +319,7 @@ def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=3000, lambda_a
 
     height, width, _ = np.shape(img_frames[0])
     n = 1
-    f = 256
+    f = 2000
     vr = width
     vb = height
     vl, vt = 0, 0
@@ -316,6 +327,7 @@ def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=3000, lambda_a
     P = torch.from_numpy(perspective_projection_matrix(width, height, n, f, fovy)).float()
     
     landmarks_preds = torch.zeros(M, 2, 68)
+    L_fit_prev = np.inf
     for iter in np.arange(n_iters):
         L_lan, L_reg, L_fit = 0, 0, 0
         for i in range(M):
@@ -326,13 +338,17 @@ def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=3000, lambda_a
             landmarks_pred = G_trans[:2, :] / G_trans[3, :]
             landmarks_preds[i] = landmarks_pred
             L_lan += torch.mean((landmarks_pred - landmarks_true_list[i]).pow(2).sum(dim=0).sqrt())
-            # L_lan += (landmarks_pred - landmarks_true_list[i]).pow(2).sum(dim=0).sqrt().sum() / 68
             L_reg += lambda_alpha * torch.sum(alpha[i].pow(2)) + lambda_delta * torch.sum(delta[i].pow(2))
         L_fit = L_lan + L_reg
         optimizer.zero_grad()
         L_fit.backward()
         optimizer.step()
         if iter % 50 == 0:
+            if L_fit >= L_fit_prev - 0.005:
+                print("Detected convergence: applying early stopping.")
+                break
+            else:
+                L_fit_prev = L_fit
             print('iter: {}/{}, L_lan: {:.4f}, L_reg: {:.4f}, L_fit:{:.4f}'.format(iter, n_iters, L_lan, L_reg, L_fit))
     
     for i, img_frame in enumerate(img_frames):
@@ -345,17 +361,29 @@ def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=3000, lambda_a
 
     
 def face_swap(bfm, source, target, source_name, target_name):
-    _, alpha_s, delta_s, omega_s, t_s = latent_parameter_estimation(bfm, source, source_name, plot=False)
-    _, alpha_t, delta_t, omega_t, t_t = latent_parameter_estimation(bfm, target, target_name, plot=False)
+    try:
+        alpha_s = pload('alpha_' + source_name)
+        delta_s = pload('delta_' + source_name)
+        omega_s = pload('omega_' + source_name)
+        t_s = pload('t_' + source_name)
+    except:
+        _, alpha_s, delta_s, omega_s, t_s = latent_parameter_estimation(bfm, source, source_name, plot=False)
+    try:
+        alpha_t = pload('alpha_' + target_name)
+        delta_t = pload('delta_' + target_name)
+        omega_t = pload('omega_' + target_name)
+        t_t = pload('t_' + target_name)
+    except:
+        _, alpha_t, delta_t, omega_t, t_t = latent_parameter_estimation(bfm, target, target_name, plot=False)
 
-    texture_s, G_trans_s, triangles_s = get_texture(bfm, source, source_name, alpha_s, delta_s, omega_s, t_s)
-    texture_t, G_trans_t, triangles_t = get_texture(bfm, target, target_name, alpha_t, delta_t, omega_t, t_t)
+    texture_s, G_trans_s, triangles_s = get_texture(bfm, source, source_name, alpha_s, delta_s, omega_s, t_s, plot=False)
+    texture_t, G_trans_t, triangles_t = get_texture(bfm, target, target_name, alpha_t, delta_t, omega_t, t_t, plot=False)
     
     height_s, width_s, _ = np.shape(source)
     height_t, width_t, _ = np.shape(target)
 
     print("Rendering swapped faces...")
-    swap_s_to_t = render(G_trans_t, texture_s, triangles_t, H=height_t, W=width_t)
+    swap_s_to_t = render(G_trans_t, texture_s, triangles_s, H=height_t, W=width_t)
     swap_t_to_s = render(G_trans_s, texture_t, triangles_s, H=height_s, W=width_s)
     
     swap_s_to_t = paste_swapped_face(swap_s_to_t, target)

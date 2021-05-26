@@ -20,9 +20,10 @@ def plot_landmarks(G, name):
 def plot_learned_matches(landmarks_true, landmarks_pred, img, img_name, n_iters):
     plt.figure()
     plt.imshow(img)
-    plt.scatter(landmarks_true[0, :], landmarks_true[1, :], label='detected landmarks')
-    landmarks_preds_x, landmarks_pred_y = landmarks_pred.detach()[0, :], landmarks_pred.detach()[1, :]
-    plt.scatter(landmarks_preds_x, landmarks_pred_y, label='predicted landmarks')
+    plt.scatter(landmarks_true[0, :], landmarks_true[1, :], label='detected landmarks', marker='.')
+    if landmarks_pred is not None:
+        landmarks_preds_x, landmarks_pred_y = landmarks_pred.detach()[0, :], landmarks_pred.detach()[1, :]
+        plt.scatter(landmarks_preds_x, landmarks_pred_y, label='predicted landmarks', marker='.')
     plt.tight_layout()
     plt.legend()
     plt.savefig('./results/learned_landmarks_{}_{}.png'.format(img_name, n_iters))
@@ -34,7 +35,7 @@ def plot_loss_iters(L_lan_list, L_reg_list, L_fit_list, img_name, n_iters):
     plt.plot(x, L_lan_list, label='$\mathcal{L}_{lan}$')
     plt.plot(x, L_reg_list, label='$\mathcal{L}_{reg}$')
     plt.plot(x, L_fit_list, label='$\mathcal{L}_{fit}$')
-    plt.title('Loss throughout optimization iterations')
+    plt.title('Loss throughout parameter optimization for {} image'.format(img_name))
     plt.xlabel('Iteration')
     plt.ylabel('Loss')
     plt.legend()
