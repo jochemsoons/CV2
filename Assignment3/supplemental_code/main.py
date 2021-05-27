@@ -29,12 +29,14 @@ def main():
     # Question 4.2.3: Latent parameters estimation.
     elif question == '4.2.3':
         # Set image onto which we perform latent parameter estimation.
-        image = 'messi'
+        image = 'pitt'
         # Set the hyperparameters.
-        n_iters = 5000
+        n_iters = 10000
         l_alpha, l_delta = 0.1, 0.1
         try:
             img = plt.imread('./data/{}.jpg'.format(image))
+            # img = cv2.imread('./data/{}.png'.format(image))
+            # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         except:
             print("Could not find {} image in data folder. Please specify correct image. Aborting.".format(image))
             return
@@ -44,7 +46,7 @@ def main():
     # Question 4.2.4: Texturing.
     elif question == '4.2.4':
         # Set image onto which we perform mesh and texture extraction.
-        image = 'messi'
+        image = 'pitt'
         try:
             img = plt.imread('./data/{}.jpg'.format(image))
         except:
@@ -66,7 +68,7 @@ def main():
     elif question == '4.2.5':
         # Set hyperparameters.
         n_iters = 5000
-        l_alpha, l_delta = 0.1, 0.1
+        l_alpha, l_delta = 1, 1
         img_frames = []
         landmarks_true_list = []
         # Load image frames.
@@ -83,14 +85,14 @@ def main():
     # Question 4.2.6: Face Swapping.
     elif question == '4.2.6':
         # Set the two images onto which we perform face swapping.
-        image1 = 'messi'
-        image2 = 'pitt'
+        image1 = 'pitt'
+        image2 = 'clooney'
         try:
             print("Swapping {} and {} images".format(image1, image2))
             img1 = plt.imread('./data/{}.jpg'.format(image1))
             img2 = plt.imread('./data/{}.jpg'.format(image2))
         except:
-            print("Could not find {} and {} images in data folder. Please specify correct images. Aborting.".format(image1, image2))
+            print("Could not find {} and/or {} image in data folder. Please specify correct images. Aborting.".format(image1, image2))
             return
         # Perform Face Swapping on the two provided images.
         face_swap(bfm, img1, img2, source_name=image1, target_name=image2)

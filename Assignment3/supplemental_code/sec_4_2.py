@@ -188,7 +188,7 @@ def landmarks(bfm):
     return 
 
 # Function to estimate latent parameters alpha, delta, omega and t through gradient descent.
-def latent_parameter_estimation(bfm, img, img_name, n_iters=5000, lambda_alpha=0.1, lambda_delta=0.1, plot=True):
+def latent_parameter_estimation(bfm, img, img_name, n_iters=10000, lambda_alpha=0.1, lambda_delta=0.1, plot=True):
     print("Learning latent parameters for {} image".format(img_name))
     # Extract vertex index information.
     file = open('Landmarks68_model2017-1_face12_nomouth.anl', mode='r')
@@ -242,7 +242,7 @@ def latent_parameter_estimation(bfm, img, img_name, n_iters=5000, lambda_alpha=0
         L_fit = L_lan + L_reg
         L_fit.backward()
         optimizer.step()
-        L_lan_list.append(L_lan), L_reg_list.append(L_reg), L_fit_list.append(L_fit)
+        L_lan_list.append(L_lan.detach()), L_reg_list.append(L_reg.detach()), L_fit_list.append(L_fit.detach())
         # Plot detected and predicted landmarks in first iteration.
         if iter == 0:
             if plot:
@@ -261,6 +261,7 @@ def latent_parameter_estimation(bfm, img, img_name, n_iters=5000, lambda_alpha=0
         plot_learned_matches(landmarks_true, landmarks_pred, img, img_name, iter+1)
         # Plot loss against iterations.
         plot_loss_iters(L_lan_list, L_reg_list, L_fit_list, img_name, iter+1)
+        print("Done. Check the results directory to see predicted landmarks and loss plots.")
     # Dump variables so that we may retrieve them later.
     pdump(alpha.detach(), 'alpha_' + img_name)
     pdump(delta.detach(), 'delta_' + img_name)
@@ -327,10 +328,11 @@ def get_texture(bfm, img, img_name, alpha, delta, omega, t, plot=True):
         # Render and plot the texture image.
         rendered_img = render(G_trans, texture, triangle_topology.T, H=height, W=width)
         plot_texture(rendered_img, img_name)
+        print("Done. Check the results directory to see rendered results.")
     return texture, G_trans, triangle_topology.T
 
 # Function to perform the latent parameter estimation on a series of frames (question 4.2.5).
-def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=5000, lambda_alpha=0.1, lambda_delta=0.1, plot=True):
+def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=10000, lambda_alpha=1, lambda_delta=1, plot=True):
     # Extract vertex index information.
     file = open('Landmarks68_model2017-1_face12_nomouth.anl', mode='r')
     landmarks_str = file.read()
@@ -340,7 +342,7 @@ def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=5000, lambda_a
     # M is the number of frames we have.
     M = len(img_frames)
     # Initialize the to-be-learned variables as torch Variables.
-    alpha = Variable(torch.FloatTensor(M, 30).uniform_(-1, 1), requires_grad=True)
+    alpha = Variable(torch.FloatTensor(30).uniform_(-1, 1), requires_grad=True)
     delta = Variable(torch.FloatTensor(M, 20).uniform_(-1, 1), requires_grad=True)
     omega = Variable(torch.zeros(M, 3), requires_grad=True)
     t = torch.zeros(M, 3)
@@ -369,7 +371,7 @@ def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=5000, lambda_a
         # At every epoch loop over all M images.
         for i in range(M):
             # Step 1: compute G given current alpha and delta.
-            G = e2h(compute_G(bfm, landmarks=landmark_indices, use_torch=True, alpha=alpha[i], delta=delta[i])).float()  
+            G = e2h(compute_G(bfm, landmarks=landmark_indices, use_torch=True, alpha=alpha, delta=delta[i])).float()  
             # Step 2: transform G with T, V and P matrices to get predicted landmarks.
             T = transformation_matrix(omega[i][0], omega[i][1], omega[i][2], t[i][0], t[i][1], t[i][2], use_torch=True)
             G_trans = T @ G.T
@@ -378,7 +380,7 @@ def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=5000, lambda_a
             landmarks_preds[i] = landmarks_pred
             # Step 3: compute landmark loss and regularization loss.
             L_lan += torch.mean((landmarks_pred - landmarks_true_list[i]).pow(2).sum(dim=0).sqrt())
-            L_reg += lambda_alpha * torch.sum(alpha[i].pow(2)) + lambda_delta * torch.sum(delta[i].pow(2))
+            L_reg += lambda_alpha * torch.sum(alpha.pow(2)) + lambda_delta * torch.sum(delta[i].pow(2))
         # Step 4: obtain overall loss and perform backpropagation on variables.
         L_fit = L_lan + L_reg
         optimizer.zero_grad()
@@ -403,6 +405,7 @@ def multiple_frames(bfm, img_frames, landmarks_true_list, n_iters=5000, lambda_a
         t_ = t[i].detach()
         # Obtain and plot the transformed mesh and textures.
         get_texture(bfm, img_frame, img_name, alpha_, delta_, omega_, t_, plot=True)
+    print("Done. Check the results directory to see results.")
 
 # Function to perform face swapping given two images (source, target).
 def face_swap(bfm, source, target, source_name, target_name):
@@ -426,16 +429,16 @@ def face_swap(bfm, source, target, source_name, target_name):
         _, alpha_t, delta_t, omega_t, t_t = latent_parameter_estimation(bfm, target, target_name, plot=False)
     
     # Obtain the texture and transformed mesh for the source and target images.
-    texture_s, G_trans_s, triangles_s = get_texture(bfm, source, source_name, alpha_s, delta_s, omega_s, t_s, plot=False)
-    texture_t, G_trans_t, triangles_t = get_texture(bfm, target, target_name, alpha_t, delta_t, omega_t, t_t, plot=False)
+    texture_s, G_trans_s, triangles = get_texture(bfm, source, source_name, alpha_s, delta_s, omega_s, t_s, plot=False)
+    texture_t, G_trans_t, _ = get_texture(bfm, target, target_name, alpha_t, delta_t, omega_t, t_t, plot=False)
     # Get image shape information for rendering.
     height_s, width_s, _ = np.shape(source)
     height_t, width_t, _ = np.shape(target)
 
     # Render swapped faces (source to target and target to source).
     print("Rendering swapped faces...")
-    swap_s_to_t = render(G_trans_t, texture_s, triangles_s, H=height_t, W=width_t)
-    swap_t_to_s = render(G_trans_s, texture_t, triangles_s, H=height_s, W=width_s)
+    swap_s_to_t = render(G_trans_t, texture_s, triangles, H=height_t, W=width_t)
+    swap_t_to_s = render(G_trans_s, texture_t, triangles, H=height_s, W=width_s)
     
     # Paste swapped faces onto original images to get final swapped face image.
     swap_s_to_t = paste_swapped_face(swap_s_to_t, target)
@@ -443,6 +446,7 @@ def face_swap(bfm, source, target, source_name, target_name):
     # Plot results.
     plot_swapped_face(swap_s_to_t, source_name, target_name)    
     plot_swapped_face(swap_t_to_s, target_name, source_name)
+    print("Done. Check the results directory for the swapped face results.")
 
 # Helper function that pastes a (cropped) swapped face onto the corresponding target image.
 def paste_swapped_face(swapped_face, target):
